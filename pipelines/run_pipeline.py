@@ -1,9 +1,11 @@
 # pipelines/run_pipeline.py
 
 import argparse
+
 import boto3
 
 from pipelines.pipeline import get_pipeline
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -32,6 +34,7 @@ def parse_args():
     )
 
     return parser.parse_args()
+
 
 def main():
     args = parse_args()
@@ -66,6 +69,7 @@ def main():
 
     print("Started pipeline execution:")
     print(f"  ARN: {execution.arn}")
+
 
 if __name__ == "__main__":
     main()
