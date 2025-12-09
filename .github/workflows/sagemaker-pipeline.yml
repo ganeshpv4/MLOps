@@ -1,0 +1,83 @@
+name: sagemaker-pipeline
+
+on:
+  push:
+    branches: [ "dev","main" ]
+  workflow_dispatch: {}
+
+env:
+  AWS_REGION: us-west-2
+  SM_PIPELINE_NAME: house-price-demo-pipeline
+  SM_DEFAULT_BUCKET: sm-s3-demo-data-bucket
+  SM_INPUT_DATA_URI: s3://sm-s3-demo-data-bucket/house-prices/housing.csv
+
+jobs:
+  ci-checks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Run black (format check)
+        run: |
+          black --check src pipelines tests
+
+      - name: Run ruff (lint)
+        run: |
+          ruff check src pipelines tests
+
+      - name: Run mypy (type checking)
+        run: |
+          mypy src pipelines
+
+      - name: Run unit tests
+        run: |
+          pytest -q
+
+  run-sagemaker-pipeline:
+    needs: ci-checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Commenting out the SageMaker pipeline execution for now
+      # - name: Run SageMaker pipeline
+      #   env:
+      #     ROLE_ARN: ${{ secrets.SAGEMAKER_ROLE_ARN }}
+      #   run: |
+      #     python -m pipelines.run_pipeline \
+      #       --region "$AWS_REGION" \
+      #       --role-arn "$ROLE_ARN" \
+      #       --default-bucket "$SM_DEFAULT_BUCKET" \
+      #       --pipeline-name "$SM_PIPELINE_NAME" \
+      #       --input-data-uri "$SM_INPUT_DATA_URI"
