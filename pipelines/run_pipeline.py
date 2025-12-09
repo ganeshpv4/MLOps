@@ -1,5 +1,3 @@
-# pipelines/run_pipeline.py
-
 import argparse
 
 import boto3

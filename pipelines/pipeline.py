@@ -1,13 +1,13 @@
 import boto3
 import sagemaker
-from sagemaker.workflow.pipeline import Pipeline
-from sagemaker.workflow.steps import TrainingStep, ProcessingStep
-from sagemaker.workflow.parameters import ParameterString
 from sagemaker.inputs import TrainingInput
+from sagemaker.processing import ProcessingInput, ProcessingOutput
 from sagemaker.sklearn.estimator import SKLearn
 from sagemaker.sklearn.processing import SKLearnProcessor
-from sagemaker.processing import ProcessingInput, ProcessingOutput
+from sagemaker.workflow.parameters import ParameterString
+from sagemaker.workflow.pipeline import Pipeline
 from sagemaker.workflow.properties import PropertyFile
+from sagemaker.workflow.steps import ProcessingStep, TrainingStep
 
 
 def get_pipeline(
