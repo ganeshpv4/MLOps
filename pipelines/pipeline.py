@@ -76,7 +76,7 @@ def get_pipeline(
     processor = SKLearnProcessor(
         framework_version=sklearn_version,
         role=role_arn,
-        instance_type=processing_instance_type,  # <-- changed from hardcoded m5.xlarge
+        instance_type=processing_instance_type,
         instance_count=1,
         sagemaker_session=sagemaker_session,
         base_job_name="house-price-eval",
