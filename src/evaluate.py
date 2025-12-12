@@ -1,11 +1,14 @@
 import argparse
 import json
 import os
+import sys
 import tarfile
+import traceback
 from glob import glob
 
 import joblib
 import pandas as pd
+from sklearn import __version__ as sklearn_version
 from sklearn.metrics import mean_squared_error
 
 
@@ -69,37 +72,94 @@ def find_or_extract_model(model_dir: str) -> str:
 
 
 def main():
-    args = parse_args()
+    try:
+        args = parse_args()
 
-    model_dir = os.environ.get("SM_MODEL_DIR", args.model_dir)
-    test_path = os.environ.get("SM_CHANNEL_TEST", args.test_data)
-    output_dir = os.environ.get("SM_OUTPUT_DATA_DIR", args.output_dir)
+        # Prefer CLI args passed by ProcessingStep (these are explicit).
+        # Fall back to SM_* env vars only if args are empty/None.
+        model_dir = args.model_dir or os.environ.get("SM_MODEL_DIR", "/opt/ml/model")
+        test_path = args.test_data or os.environ.get("SM_CHANNEL_TEST", "/opt/ml/input/data/test")
+        output_dir = args.output_dir or os.environ.get("SM_OUTPUT_DATA_DIR", "/opt/ml/output")
 
-    os.makedirs(output_dir, exist_ok=True)
+        # Debug: show both CLI args and env vars, then list likely locations
+        print(
+            f"ARG model_dir={args.model_dir} test_data={args.test_data} output_dir={args.output_dir}"
+        )
+        print(f"ENV SM_MODEL_DIR={os.environ.get('SM_MODEL_DIR')}")
+        print(f"ENV SM_CHANNEL_TEST={os.environ.get('SM_CHANNEL_TEST')}")
+        print(f"ENV SM_OUTPUT_DATA_DIR={os.environ.get('SM_OUTPUT_DATA_DIR')}")
+        print(f"sys.executable={sys.executable}")
+        print(f"python sys.path={sys.path}")
+        print(f"pandas version: {pd.__version__}")
+        print(
+            f"joblib version: {joblib.__version__ if hasattr(joblib, '__version__') else 'unknown'}"
+        )
+        print(f"sklearn version: {sklearn_version}")
 
-    # ---- Load model ----
-    model_path = find_or_extract_model(model_dir)
-    model = joblib.load(model_path)
+        # Ensure output dir exists for logs/metrics
+        os.makedirs(output_dir, exist_ok=True)
 
-    # ---- Load test data ----
-    df = load_data(test_path)
-    X = df[["size_sqft", "num_rooms", "age_years"]]
-    y = df["price"]
+        # List contents of common model locations to aid debugging
+        for p in (model_dir, "/opt/ml/processing/model", "/opt/ml/model"):
+            try:
+                print(f"LIST {p}: {os.listdir(p)}")
+            except Exception as e:
+                print(f"Cannot list {p}: {e}")
 
-    preds = model.predict(X)
-    mse = mean_squared_error(y, preds)
-    print(f"Test MSE: {mse:.4f}")
+        # ---- Load model ----
+        try:
+            model_path = find_or_extract_model(model_dir)
+        except FileNotFoundError as e:
+            # add directory listing into the exception log for CloudWatch
+            tb = f"{e}\nDirectory listings above indicate what is present."
+            print(tb, file=sys.stderr)
+            # write a helper log file to output dir for easier inspection
+            try:
+                with open(os.path.join(output_dir, "model_not_found.log"), "w") as ef:
+                    ef.write(tb)
+            except Exception:
+                pass
+            raise
 
-    # ---- Save metrics to JSON ----
-    metrics = {
-        "mse": mse,
-    }
+        print(f"Resolved model_path={model_path}")
+        try:
+            print(f"List model_dir contents: {os.listdir(os.path.dirname(model_path))}")
+        except Exception:
+            pass
+        model = joblib.load(model_path)
 
-    metrics_path = os.path.join(output_dir, "metrics.json")
-    with open(metrics_path, "w") as f:
-        json.dump(metrics, f)
+        # ---- Load test data ----
+        df = load_data(test_path)
+        print(f"Loaded test dataframe shape: {df.shape}")
+        X = df[["size_sqft", "num_rooms", "age_years"]]
+        y = df["price"]
 
-    print(f"Saved metrics to {metrics_path}")
+        preds = model.predict(X)
+        mse = mean_squared_error(y, preds)
+        print(f"Test MSE: {mse:.4f}")
+
+        # ---- Save metrics to JSON ----
+        metrics = {
+            "mse": mse,
+        }
+
+        metrics_path = os.path.join(output_dir, "metrics.json")
+        with open(metrics_path, "w") as f:
+            json.dump(metrics, f)
+
+        print(f"Saved metrics to {metrics_path}")
+    except Exception:
+        # dump full traceback to stderr and to a file so SageMaker logs show it
+        tb = traceback.format_exc()
+        print("EXCEPTION in evaluate.py:\n" + tb, file=sys.stderr)
+        # also write a log file in output_dir if possible
+        try:
+            os.makedirs(output_dir, exist_ok=True)
+            with open(os.path.join(output_dir, "evaluation_error.log"), "w") as ef:
+                ef.write(tb)
+        except Exception:
+            pass
+        raise
 
 
 if __name__ == "__main__":

@@ -45,6 +45,23 @@ python -m pipelines.run_pipeline \
   --default-bucket <s3-bucket> \
   --input-data-uri <s3-input-csv>
 
+Run locally
+
+Recommended setup
+Create a venv and install minimal deps
+
+python -m venv .venv
+source .venv/bin/activate   # use .venv\Scripts\activate on Windows
+python -m pip install --upgrade pip
+python -m pip install pandas scikit-learn joblib
+# Optionally run full requirements if you want CI/tools: pip install -r requirements.txt
+
+Train locally
+python -m src.train --train-data data/housing.csv --model-dir model
+
+Evaluate locally
+python -m src.evaluate --model-dir model --test-data data/housing.csv --output-dir eval
+
 🔐 Required GitHub Secrets
 Secret	Purpose
 AWS_ACCESS_KEY_ID	AWS access key

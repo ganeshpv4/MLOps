@@ -1,0 +1,36 @@
+# Python caches and virtual environments
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+v/
+
+# Tool caches
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Distribution / build
+build/
+dist/
+
+# Local data / artifacts (do not commit large model files)
+model/
+eval/
+data/*.csv  # remove this line if you want to keep small sample data tracked
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Sensitive files
+.env
+secrets/
+
+tmp_*
