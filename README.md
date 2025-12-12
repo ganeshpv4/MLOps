@@ -23,22 +23,30 @@ TrainModel → trains with src/train.py
 EvaluateModel → evaluates with src/evaluate.py and stores metrics.json in S3
 
 👩‍💻 Developer Setup
+
 python -m pip install -r requirements.txt
+
 python -m pip install pre-commit
+
 python -m pre_commit install
 
 
 Workflow:
 
 git add .
+
 git commit -m "msg"   # pre-commit auto-formats & lints
+
 git commit -m "msg"   # commit again if first try modified files
+
 git push              # CI + SageMaker pipeline run
 
 🧪 Run tests locally
+
 python -m pytest -q
 
 ▶️ Manually run SageMaker pipeline (optional)
+
 python -m pipelines.run_pipeline \
   --region <region> \
   --role-arn <role> \
@@ -48,25 +56,36 @@ python -m pipelines.run_pipeline \
 Run locally
 
 Recommended setup
+
 Create a venv and install minimal deps
 
 python -m venv .venv
-source .venv/bin/activate   # use .venv\Scripts\activate on Windows
+
+source .venv/bin/activate
+
 python -m pip install --upgrade pip
+
 python -m pip install pandas scikit-learn joblib
+
 # Optionally run full requirements if you want CI/tools: pip install -r requirements.txt
 
 Train locally
+
 python -m src.train --train-data data/housing.csv --model-dir model
 
 Evaluate locally
+
 python -m src.evaluate --model-dir model --test-data data/housing.csv --output-dir eval
 
 🔐 Required GitHub Secrets
-Secret	Purpose
-AWS_ACCESS_KEY_ID	AWS access key
-AWS_SECRET_ACCESS_KEY	AWS secret
-SAGEMAKER_ROLE_ARN	SageMaker execution role
+
+Secrets
+
+AWS_ACCESS_KEY_ID	AWS
+
+AWS_SECRET_ACCESS_KEY
+
+SAGEMAKER_ROLE_ARN
 
 ⭐ Notes
 

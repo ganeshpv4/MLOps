@@ -3,8 +3,14 @@ name: sagemaker-pipeline
 on:
   push:
     branches: [ "dev","main" ]
-  workflow_dispatch: {}
-
+  # schedule:
+  #   - cron: "0 12 * * 0" # Every Sunday at 12:00 PM UTC
+  workflow_dispatch:
+    inputs:
+      run_as_user:
+        description: 'User to run the pipeline as'
+        required: false
+        default: ''
 env:
   AWS_REGION: us-west-2
   SM_PIPELINE_NAME: house-price-demo-pipeline
@@ -63,12 +69,45 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Configure AWS credentials
+      - name: Show selected user
+        run: |
+          echo "Requested run_as_user: '${{ github.event.inputs.run_as_user || 'DEFAULT' }}'"
+
+      # -------------------------
+      # Configure AWS using selected user's secrets
+      # -------------------------
+      # NOTE: GitHub doesn't allow dynamically reading a secret's name.
+
+      - name: Configure AWS creds for Ganesh
+        if: ${{ github.event.inputs.run_as_user == 'ganesh' }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_GANESH }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_GANESH }}
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configure AWS creds for Developer
+        if: ${{ github.event.inputs.run_as_user == 'developer' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_DEVELOPER }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_DEVELOPER }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configure AWS credentials (default)
+        if: ${{ github.event.inputs.run_as_user == '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_GANESH }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_GANESH }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Fail if an unsupported user was supplied
+      - name: Fail on unsupported user
+        if: ${{ github.event.inputs.run_as_user != '' && github.event.inputs.run_as_user != 'ganesh' && github.event.inputs.run_as_user != 'developer' }}
+        run: |
+          echo "Unsupported run_as_user: ${GITHUB_EVENT_INPUTS_RUN_AS_USER:-unspecified}"
+          exit 1
 
       - name: Run SageMaker pipeline
         env:

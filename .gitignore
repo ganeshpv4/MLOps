@@ -17,6 +17,7 @@ dist/
 
 # Local data / artifacts (do not commit large model files)
 model/
+model_dir/
 eval/
 data/*.csv  # remove this line if you want to keep small sample data tracked
 
