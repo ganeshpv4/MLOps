@@ -9,8 +9,12 @@ on:
     inputs:
       run_as_user:
         description: 'User to run the pipeline as'
-        required: false
-        default: ''
+        type: choice
+        required: true
+        default: ganesh
+        options:
+          - ganesh
+          - developer
 env:
   AWS_REGION: us-west-2
   SM_PIPELINE_NAME: house-price-demo-pipeline
