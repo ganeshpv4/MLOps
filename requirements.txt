@@ -1,0 +1,10 @@
+boto3
+sagemaker<3
+pandas
+scikit-learn
+joblib
+pytest
+ruff
+black
+mypy
+pre-commit

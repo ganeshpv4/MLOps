@@ -1,0 +1,38 @@
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | build
+  | dist
+  | __pycache__
+)/
+'''
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+# F,E: pyflakes/pycodestyle; I: import sorting; B: bugbear; UP: pyupgrade rough checks
+select = ["F", "E", "W", "I", "B", "UP"]
+ignore = [
+  "E203",  # compatibility with black
+  "E501",  # line length handled by black
+]
+src = ["src", "pipelines", "tests"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src", "pipelines"]
+combine-as-imports = true
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = false
+show_error_codes = true
+pretty = true

@@ -1,0 +1,168 @@
+name: sagemaker-pipeline
+
+on:
+  # push:
+  #   branches: [ "dev","main" ]
+  schedule:
+    - cron: "0 12 * * 0" # Every Sunday at 12:00 PM UTC
+  workflow_dispatch:
+    inputs:
+      run_as_user:
+        description: 'User to run the pipeline as'
+        type: choice
+        required: true
+        default: ganesh
+        options:
+          - ganesh
+          - developer
+      target_env:
+        description: 'Target environment'
+        type: choice
+        required: true
+        default: dev
+        options:
+          - dev
+          - test
+          - preprod
+          - prod
+env:
+  AWS_REGION: us-west-2
+  SM_PIPELINE_NAME: house-price-demo-pipeline # Update pipeline name as per environment
+  SM_DEFAULT_BUCKET: sm-s3-demo-data-bucket # Update bucket name as per environment
+  SM_INPUT_DATA_URI: s3://sm-s3-demo-data-bucket/house-prices/housing.csv
+
+jobs:
+  determine-environment:
+    name: Determine the deployment environment
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.set-env.outputs.env }}
+    steps:
+      - name: Determine the environment
+        id: set-env
+        shell: bash
+        run: |
+          echo "Event: ${{ github.event_name }}"
+          echo "Ref:   ${{ github.ref }}"
+
+          # Manual promotion → only allowed from main
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            if [[ "${{ github.ref }}" != "refs/heads/main" ]]; then
+              echo "❌ Manual promotion is allowed only from main branch"
+              exit 1
+            fi
+            echo "env=${{ github.event.inputs.target_env }}" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Automatic deployments
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "env=test" >> $GITHUB_OUTPUT
+          else
+            # feat/*, dev, any other branch
+            echo "env=dev" >> $GITHUB_OUTPUT
+          fi
+
+  ci-checks:
+    runs-on: ubuntu-latest
+    needs: determine-environment
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Run black (format check)
+        run: |
+          black --check src pipelines tests
+
+      - name: Run ruff (lint)
+        run: |
+          ruff check src pipelines tests
+
+      - name: Run mypy (type checking)
+        run: |
+          mypy src pipelines
+
+      - name: Run unit tests
+        run: |
+          pytest -q
+
+  run-sagemaker-pipeline:
+    needs: [determine-environment, ci-checks]
+    runs-on: ubuntu-latest
+    environment: ${{ needs.determine-environment.outputs.env }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Show selected user
+        run: |
+          echo "Requested run_as_user: '${{ github.event.inputs.run_as_user || 'DEFAULT' }}'"
+
+      # -------------------------
+      # Configure AWS using selected user's secrets
+      # -------------------------
+      # NOTE: GitHub doesn't allow dynamically reading a secret's name.
+
+      - name: Configure AWS creds for Ganesh
+        if: ${{ github.event.inputs.run_as_user == 'ganesh' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_GANESH }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_GANESH }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configure AWS creds for Developer
+        if: ${{ github.event.inputs.run_as_user == 'developer' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_DEVELOPER }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_DEVELOPER }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configure AWS credentials (default)
+        if: ${{ github.event.inputs.run_as_user == '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_GANESH }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_GANESH }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Fail if an unsupported user was supplied
+      - name: Fail on unsupported user
+        if: ${{ github.event.inputs.run_as_user != '' && github.event.inputs.run_as_user != 'ganesh' && github.event.inputs.run_as_user != 'developer' }}
+        run: |
+          echo "Unsupported run_as_user: ${GITHUB_EVENT_INPUTS_RUN_AS_USER:-unspecified}"
+          exit 1
+
+      - name: Run SageMaker pipeline
+        env:
+          ROLE_ARN: ${{ secrets.SAGEMAKER_ROLE_ARN }}
+        run: |
+          python -m pipelines.run_pipeline \
+            --region "$AWS_REGION" \
+            --role-arn "$ROLE_ARN" \
+            --default-bucket "$SM_DEFAULT_BUCKET" \
+            --pipeline-name "$SM_PIPELINE_NAME" \
+            --input-data-uri "$SM_INPUT_DATA_URI"
