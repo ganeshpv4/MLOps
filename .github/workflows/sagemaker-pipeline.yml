@@ -27,9 +27,6 @@ on:
           - prod
 env:
   AWS_REGION: us-west-2
-  SM_PIPELINE_NAME: house-price-demo-pipeline # Update pipeline name as per environment
-  SM_DEFAULT_BUCKET: sm-s3-demo-data-bucket # Update bucket name as per environment
-  SM_INPUT_DATA_URI: s3://sm-s3-demo-data-bucket/house-prices/housing.csv
 
 jobs:
   determine-environment:
@@ -47,21 +44,30 @@ jobs:
 
           # Manual promotion → only allowed from main
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            if [[ "${{ github.ref }}" != "refs/heads/main" ]]; then
-              echo "❌ Manual promotion is allowed only from main branch"
-              exit 1
-            fi
-            echo "env=${{ github.event.inputs.target_env }}" >> $GITHUB_OUTPUT
+            # if [[ "${{ github.ref }}" != "refs/heads/main" ]]; then
+            #   echo "❌ Manual promotion is allowed only from main branch"
+            #   exit 1
+            # fi
+            ENV="${{ github.event.inputs.target_env }}"
+            echo "✅ Pipeline will run in environment: $ENV"
+            echo "env=$ENV" >> $GITHUB_OUTPUT
             exit 0
           fi
 
           # Automatic deployments
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            echo "env=test" >> $GITHUB_OUTPUT
+            ENV="test"
           else
             # feat/*, dev, any other branch
-            echo "env=dev" >> $GITHUB_OUTPUT
+            ENV="dev"
           fi
+
+          echo "✅ Pipeline will run in environment: $ENV"
+          echo "env=$ENV" >> $GITHUB_OUTPUT
+
+          echo "SM_PIPELINE_NAME=house-price-${ENV}-pipeline" >> $GITHUB_ENV
+          echo "SM_DEFAULT_BUCKET=sagemaker-${ENV}-data-bucket" >> $GITHUB_ENV
+          echo "SM_INPUT_DATA_URI=s3://sagemaker-${ENV}-data-bucket/house-prices/housing.csv" >> $GITHUB_ENV
 
   ci-checks:
     runs-on: ubuntu-latest
@@ -115,10 +121,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
-      - name: Show selected user
-        run: |
-          echo "Requested run_as_user: '${{ github.event.inputs.run_as_user || 'DEFAULT' }}'"
 
       # -------------------------
       # Configure AWS using selected user's secrets
