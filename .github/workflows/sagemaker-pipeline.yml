@@ -106,7 +106,7 @@ jobs:
   run-sagemaker-pipeline:
     needs: [determine-environment, ci-checks]
     runs-on: ubuntu-latest
-    environment: ${{ needs.determine-environment.outputs.env }}
+    environment: ${{ needs.determine-environment.outputs.environment }}
 
     steps:
       - name: Checkout repository
