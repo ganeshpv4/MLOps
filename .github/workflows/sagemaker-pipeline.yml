@@ -3,8 +3,8 @@ name: sagemaker-pipeline
 on:
   # push:
   #   branches: [ "dev","main" ]
-  schedule:
-    - cron: "0 12 * * 0" # Every Sunday at 12:00 PM UTC
+  # schedule:
+  #   - cron: "0 12 * * 0" # Every Sunday at 12:00 PM UTC
   workflow_dispatch:
     inputs:
       run_as_user:
